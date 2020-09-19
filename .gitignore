@@ -1,0 +1,4 @@
+webui/dist/
+webui/node_modules/
+
+*.swp
