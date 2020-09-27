@@ -1,0 +1,21 @@
+    <nav class="navbar navbar-dark navbar-expand-sm">
+        <div class="container">
+            <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#Navbar">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <a class="navbar-brand mr-auto" href="#">PHRM</a>
+            <span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>
+            <div class="collapse navbar-collapse" id="Navbar">
+                <ul class="navbar-nav mr-auto">
+
+		    <% htmlWebpackPlugin.options.all_pages.forEach(function(el, index) { %>
+			    <li class="nav-item<%= htmlWebpackPlugin.options.pagename === el.page ? ' active' : '' %>"><a class="nav-link" href="./<%= el.page %>.html"><%- el.description %></a></li>
+		    <% }) %>
+
+		    <% console.log("**********************************************") %>
+		    <% console.log("Hello world: " + htmlWebpackPlugin.options.pagename) %>
+
+                </ul>            
+            </div>
+        </div>
+    </nav>
