@@ -44,5 +44,10 @@
     "webpack-merge": "^4.2.2",
     "webpack-plugin": "^1.0.5"
   },
-  "dependencies": {}
+  "dependencies": {
+    "ejs-html-loader": "^4.0.1",
+    "ejs-loader": "^0.5.0",
+    "ejs-webpack-loader": "^2.2.2",
+    "webpack-add-dependency-plugin": "^0.1.2"
+  }
 }
