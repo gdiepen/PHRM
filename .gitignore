@@ -1,4 +1,5 @@
 webui/dist/
 webui/node_modules/
+__pycache__/
 
 *.swp
