@@ -184,9 +184,14 @@ function initialSetup(){
             d0 = store.data_day[i - 1],
             d1 = store.data_day[i]
 
-            if (d1 === undefined){
-                return ; 
-            }
+		var focus = d3.select(".focus")
+		if (d1 === undefined){
+			focus.style("display", "none");
+			return
+		}
+		else{
+			focus.style("display", null);
+		}
         
         var d = x0 - d0.hours_since_midnight > d1.hours_since_midnight - x0 ? d1 : d0;
         focus.attr("transform", "translate(" + store.x(d.hours_since_midnight) + "," + store.y(d.value) + ")");
@@ -388,6 +393,18 @@ function showDailyData(){
         ) ;
 
     day_points.exit().remove();
+
+
+    svg_properties.day_description
+        .transition()
+        .duration(100)
+        .style('opacity' , '0')
+        .transition()
+        .duration(100)
+        .text(DateTime.fromISO(store.selection._active_day).toFormat("cccc LLLL d, yyyy"))
+        .style('opacity' , '1')
+        .end()
+
 }
 
 
@@ -441,16 +458,6 @@ function showRangeData(){
 
     median_points.exit().remove()
 
-
-    svg_properties.day_description
-        .transition()
-        .duration(100)
-        .style('opacity' , '0')
-        .transition()
-        .duration(100)
-        .text(DateTime.fromISO(store.selection._active_day).toFormat("cccc LLLL d, yyyy"))
-        .style('opacity' , '1')
-        .end()
 
 
 
@@ -558,7 +565,7 @@ $(document).ready(function() {
 
 
     d3.select("#reloadButton").on("click", function(){
-        importData(null, null, [store.selection._active_day])
+        importData(store.selection._start_day_range, store.selection._end_day_range, [store.selection._active_day])
     })
 
 
