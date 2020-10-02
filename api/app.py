@@ -36,15 +36,21 @@ def refresh_data():
 
     print(content)
 
+    all_dates = []
+
     if content.get("date_range_start", None) is not None:
-        range_start = datetime.strptime(str(content["date_range_start"]), "%Y%m%d").strftime("%Y-%m-%d")
-        range_end = datetime.strptime(str(content["date_range_end"]), "%Y%m%d").strftime("%Y-%m-%d")
-        datastore.refresh_data(range_start, range_end)
+        range_start = str(content["date_range_start"])
+        range_end = str(content["date_range_end"])
+
+        all_dates.extend(pd.date_range(range_start, range_end, freq="D").strftime("%Y%m%d").astype(int).tolist())
     
     if content.get("separate_dates", None) is not None:
-        dates = [datetime.strptime(str(x), "%Y%m%d").strftime("%Y-%m-%d") for x in content["separate_dates"]]
-        datastore.ensure_data(dates)
+        all_dates.extend([int(x) for x in content["separate_dates"]])
 
+    # Now get the unique sorted list again
+    all_dates = sorted([*{*all_dates}])
+
+    datastore.refresh_data(all_dates)
 
     return jsonify({'status': '0'})
 
@@ -65,9 +71,6 @@ def get_data_quantile(year_month_day_start, year_month_day_end):
 
     print('Request for all quantile data ({}) from {} to {} for weekdays {} for bucket size {} and rolling average {}'.format( interval, year_month_day_start, year_month_day_end, arg_relevant_week_days, bucket_size, rolling_average_number_periods))
 
-    year_month_day_start = datetime.strptime(str(year_month_day_start), "%Y%m%d").strftime("%Y-%m-%d")
-    year_month_day_end = datetime.strptime(str(year_month_day_end), "%Y%m%d").strftime("%Y-%m-%d")
-
     (a_m, a_h, a_l) = datastore.get_range(year_month_day_start, year_month_day_end, interval, arg_relevant_week_days)
 
     my_df = pd.DataFrame( {'low': a_l, 'median': a_m , 'high': a_h} )
@@ -77,9 +80,7 @@ def get_data_quantile(year_month_day_start, year_month_day_end):
 
 @app.route('/api/day/<int:year_month_day>', methods=['GET'])
 def get_data_day(year_month_day):
-    str_year_month_day = datetime.strptime(str(year_month_day), "%Y%m%d").strftime("%Y-%m-%d")
-    
-    result = datastore.get_daily_data(str_year_month_day).loc[:, ['hours_since_midnight', 'value']]
+    result = datastore.get_day(year_month_day).loc[:, ['hours_since_midnight', 'value']]
 
     return result.to_json(orient='records')
 
