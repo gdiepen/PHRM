@@ -1,182 +1,211 @@
 import fitbit
 import pandas as pd
+import itertools
 import sqlite3
 from datetime import datetime
 import os
 import pickle
 
 from . import gather_keys_oauth2 as Oauth2
+from . import importer
+import sqlite3
 
 
-class Importer:
+class FitbitStore:
     def __init__(self, CLIENT_ID, CLIENT_SECRET):
         self.CLIENT_ID = CLIENT_ID
         self.CLIENT_SECRET = CLIENT_SECRET
         self.data_cache = {}
+
+        self.DB = "fitbit_data.sqlite3"
+
+        self.init_base_tables()
+
+        self.raw_data = importer.FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
+
+
+        self.SECONDS_IN_BUCKET = 60
+        self.ROLLING_AVERAGE_WINDOW = 10
         
+    def init_base_tables(self):
+        conn = sqlite3.connect(self.DB)
 
-    def convert_to_buckets(self, df, day):
-        SECONDS_IN_BUCKET = 60
+        cursor = conn.cursor()
+        
+        cursor.execute("CREATE TABLE IF NOT EXISTS hr_data (day int, weekday int, bucket int, value double)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_day ON hr_data (day)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_bucket ON hr_data (bucket)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_weekday ON hr_data (weekday)")
 
-        midnight_str = "{} 00:00:00".format(day)
-        midnight = pd.to_datetime(midnight_str, format="%Y-%m-%d %H:%M:%S", errors="coerce")
+        cursor.execute("CREATE TABLE IF NOT EXISTS hr_data_finished (day int)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_finished_day ON hr_data_finished (day)")
 
-        df.loc[:, "date"] = day
-        df.loc[:, "date_time"] = pd.to_datetime(df.date + ' ' + df.time, format="%Y-%m-%d %H:%M:%S", errors="coerce")
-        df.loc[:, "bucket"] = (df.date_time.astype("int64")//1e9 - midnight.timestamp()) // SECONDS_IN_BUCKET
-        df.loc[:, "datetime_bucket"] = midnight + pd.to_timedelta(SECONDS_IN_BUCKET * df.bucket, "sec")
+        conn.commit()
 
-        df = df.groupby("datetime_bucket")[["value"]].mean()
 
-        day_range_index_end =  f"{day} 23:59:59"
-        # In case we are looking at today, make sure that we don't let it run till the end of the day, but only
-        # till the bucket that we have
-        if datetime.now().strftime("%Y-%m-%d %H:%M:%S") < day_range_index_end:
-            bucket = (float((pd.to_datetime(datetime.now().strftime("%Y-%m-%d %H:%M:%S"), format="%Y-%m-%d %H:%M:%S")).asm8)//1e9 - midnight.timestamp())//SECONDS_IN_BUCKET
-            now_bucket = midnight + pd.to_timedelta(SECONDS_IN_BUCKET * bucket, "sec")
+    def get_finished_days(self):
+        sql = "select day from hr_data_finished"
 
-            day_range_index_end = now_bucket.strftime("%Y-%m-%d %H:%M:%S")
+        conn = sqlite3.connect(self.DB)
+        result = pd.read_sql_query(sql, conn).day.values.tolist()
+        conn.close()
 
-        day_range_index = pd.date_range("{} 00:00:00".format(day), day_range_index_end, freq="{}S".format(SECONDS_IN_BUCKET))
+        return result
 
-        df = df.reindex(day_range_index)
 
-        df.loc[:, "bucket"] = ((df.index.astype("int64")//1e9 - midnight.timestamp()) // SECONDS_IN_BUCKET).astype(int)
+    def refresh_days(self, days):
+        # Now check if we have already done this
+        # If there are no missing days, we are finished right away!
 
-        df.loc[:, "day"] = df.index.strftime("%Y-%m-%d")
-        df.loc[:, "weekday"] = df.index.weekday
+        # Now see which days we need to process
+        today = int(datetime.now().strftime("%Y%m%d"))
+
+        # Delete all days in the future from the list
+        days = [x for x in days if x <= today]
+
+        # Determine which days we have already. Those should not be taken
+        finished_days = self.get_finished_days()
+
+        missing_days = [x for x in days if x not in finished_days]
+
+        # if we are not finished, then 
+        # make sure that  we have the raw days to back things up for the missing days
+        # We have to add the surround days for this
+        self.raw_data.download_days(self.add_surround_days(missing_days))
+
+
+        print(f"Missing processed days are {missing_days}")
+
+        process_chunks = self.to_chunks(missing_days, 5)
+
+        conn = sqlite3.connect(self.DB)
+        cursor = conn.cursor()
+
+        for process_chunk in process_chunks:
+            process_chunk_with_surround = self.add_surround_days(process_chunk)
+
+            df_raw_data = self.raw_data.get_data(process_chunk_with_surround)
+
+            if len(df_raw_data) > 0:
+                # process the results
+                df_processed = self.process_days(df_raw_data).loc[:, ["day", "weekday", "bucket", "value"]]
+
+                # Now keep only the days that are actually relevant (i.e. remove all the surrounding days, we 
+                # do not have to write those)
+                df_processed = df_processed.loc[lambda x: x.day.isin(process_chunk), :]
+
+                # and now we can write this to the database (except for today)
+                print(f"Writing days {list(df_processed.day.unique())} to database")
+
+                # Delete any of the existing days (should not be the case)
+                # Just to be sure
+                days_to_delete = '","'.join([str(x) for x in df_processed.day.unique()])
+
+                cursor.execute(f'DELETE FROM hr_data where day in ("{days_to_delete}")')
+
+                df_processed.to_sql('hr_data', conn, index=False, if_exists="append", chunksize=1000)
+
+            # and also indicate we have finished writing the missing days
+            # Because the day of today is not completely processed yet, we have to delete it from the list
+            
+            process_chunk = [x for x in process_chunk if x != today]
+
+            if len(process_chunk) > 0:
+                days_processed = '("' +  '"),("'.join([str(x) for x in process_chunk]) + '")'
+                print(f"completely processed days: {days_processed}")
+                cursor.execute(f'INSERT OR REPLACE INTO hr_data_finished ("day") VALUES {days_processed}')
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+
+
+    def process_days(self, df):
+        # create the bucket based on the seconds
+        # Calculate the median per bucket
+        # Do a linear interpolation
+        # Do a rolling average
+        today = int(datetime.now().strftime("%Y%m%d"))
+        max_seconds_today = df.loc[lambda x:x.day==today, "seconds"].max()
+        max_bucket_today = self.SECONDS_IN_BUCKET * (max_seconds_today//self.SECONDS_IN_BUCKET)
+
+        # Determine the max bucket if we are today
+
+        # ensure all buckets are there for all of the days
+        days = df.day.unique()
+        buckets = [self.SECONDS_IN_BUCKET * x for x in range( (3600*24 -1)//self.SECONDS_IN_BUCKET) ]
+        df_all = pd.DataFrame(data=itertools.product(days,buckets), columns=["day", "bucket"])
+        df_all.loc[:, "day_bucket"] = df_all.day.astype(str) + df_all.bucket.astype(str)
+        df_all.set_index("day_bucket", inplace=True)
+
+        
+        df.loc[:, "bucket"] = self.SECONDS_IN_BUCKET * (df.loc[:, "seconds"] // self.SECONDS_IN_BUCKET)
+        df.loc[:, "day_bucket"] = df.day.astype(str) + df.bucket.astype(str)
+
+        df = df_all.merge(df, how="left", left_index=True, right_on="day_bucket").drop("day_bucket", axis=1).rename(columns={"day_x":"day", "bucket_x":"bucket"}).sort_values(["day", "bucket"])
+
+
+        df = df.groupby(["day", "bucket"]).median().reset_index().loc[:, ["day", "bucket", "value"]]
+
+
+        df.loc[:, "value"] = df.loc[:, "value"].interpolate()
+        df.loc[:, "value"] = df.loc[:, "value"].rolling(self.ROLLING_AVERAGE_WINDOW).mean()
+
+        df.loc[:, "weekday"] = pd.to_datetime(df.day.astype(str), format="%Y%m%d").dt.weekday
+
+        # Remove all buckets that are today after the last bucket we have for today
+        df = df.loc[lambda x: ~((x.day==today) & (x.bucket > max_bucket_today)), :]
 
         return df
 
-    def calculate_rolling_average(self, df):
-        ROLLING_AVERAGE_WINDOW=10
+    def to_chunks(self, l, n):
+        for i in range( math.ceil( len(l)/ n ) ):
+            yield l[i*n:((i+1)*n)]
 
-        # First we interpolate all missing values
-        df.loc[:, "interpolated"] = df.loc[:, "value"].interpolate()
+    def get_day(self, day):
+        conn = sqlite3.connect(self.DB)
+        result = pd.read_sql_query(f"select * from hr_data where day='{day}' order by bucket", conn)
+        conn.close()
 
-        # Now calculate the rolling average
-        df.loc[:, "value"] = df.loc[:, "interpolated"].rolling(ROLLING_AVERAGE_WINDOW).mean()
-
-        df.drop("interpolated", axis=1, inplace=True)
-
-        return df
+        result.loc[:, 'hours_since_midnight'] = result.bucket / 3600
+        result.drop( ['bucket'], axis=1, inplace=True)
+   
+        return result
 
 
+    def get_range(self, range_start, range_end, interval=0.6, weekday_filter=None):
+        if not weekday_filter:
+            weekday_filter = list(range(7))
+
+        weekday_filter = [str(x) for x in weekday_filter]
+
+        sql = f"select bucket,value from hr_data where day >= '{range_start}' and day <= '{range_end}' and weekday in ({','.join(weekday_filter)}) order by day, bucket"
+        conn = sqlite3.connect(self.DB)
+        result = pd.read_sql_query(sql, conn)
+        conn.close()
+
+
+        result.loc[:, 'hours_since_midnight'] = result.bucket / 3600
+        result.drop( ['bucket'], axis=1, inplace=True)
+
+        quantile_top = 1 - (1-interval)/2.0
+        quantile_bottom = (1-interval)/2.0
+
+        a_m = result.groupby("hours_since_midnight").quantile(0.5).value
+        a_h = result.groupby("hours_since_midnight").quantile(quantile_top).value
+        a_l = result.groupby("hours_since_midnight").quantile(quantile_bottom).value
+
+
+        return (a_m, a_h, a_l)
 
     def to_chunks(self, l, n):
         for i in range(1 + len(l) // n):
             yield l[i*n:((i+1)*n)]
 
-    def add_before_days(self, days):
-        day_earlier = [(pd.to_datetime(x, format="%Y-%m-%d") - pd.to_timedelta(1, "day")).strftime("%Y-%m-%d") for x in days]
-        result = sorted(list(set( day_earlier + days)))
+    def add_surround_days(self, days):
+        day_earlier = [int((pd.to_datetime(str(x), format="%Y%m%d") - pd.to_timedelta(1, "day")).strftime("%Y%m%d")) for x in days]
+        day_after = [int((pd.to_datetime(str(x), format="%Y%m%d") + pd.to_timedelta(1, "day")).strftime("%Y%m%d")) for x in days]
+        result = sorted(list(set( day_after + day_earlier + days)))
 
         return result
-
-    def retrieve_processed_data(self, days):
-        """Function to import a given set of days from fitbit. This function will then
-        download all of the required days (i.e. also the day before one of the 
-        """
-        
-        print(f"Days {days}")
-        # We need to always have one day earlier for the days we are going to download
-        # because of the linear fill and moving average
-        days_to_download = self.add_before_days(days)
-        print(f"Days to download {days_to_download}")
-
-        # delete anything from the cache that we don't need anymore
-        required_days = self.add_before_days(days)
-
-        days_to_delete_from_cache = [x for x in self.data_cache.keys() if x not in required_days]
-        for d in days_to_delete_from_cache:
-            print(f"Deleting day {d} from cache")
-            del self.data_cache[d]
-
-        for day in required_days:
-            # If the day was not yet downloaded
-            if day not in self.data_cache.keys():
-                print(f"Downloading day {day} from fitbit")
-                raw_data = self.get_raw_hr_data(day)
-                if len(raw_data):
-                    self.data_cache[day] = self.convert_to_buckets(raw_data, day)
-                else:
-                    print(f"Day {day} does not have any data")
-            else:
-                print(f"Took day {day} from cache")
-
-        if len(self.data_cache.keys()) == 0:
-            return None
-
-        # Now combine the dataframes into one large dataframe        
-        combined_df = pd.concat(self.data_cache.values(), axis=0)
-
-        # Now calculate the rolling average
-        combined_df = self.calculate_rolling_average(combined_df)
-
-        # Before we continue, make sure that we delete today from the cache, as it might contain partial data only
-        # and we should not keep that 
-        if datetime.now().strftime("%Y-%m-%d") in self.data_cache.keys():
-            del self.data_cache[datetime.now().strftime("%Y-%m-%d")]
-
-
-        # Now filter only the relevant days (i.e. don't write the previous day again)
-        combined_df = combined_df.loc[combined_df.day.isin(days), :]
-        return combined_df
-
-    def refresh_cb(self, token):
-        """ Called when the OAuth token has been refreshed """
-        print("Refreshing tokens")
-        access_token = token['access_token']
-        refresh_token = token['refresh_token']
-        expires_at = token['expires_at']
-
-        with open('token.pickle', 'wb') as f:
-            pickle.dump(token, f)
-
-
-    def obtain_tokens(self):
-        if not os.path.exists('token.pickle'):
-            server = Oauth2.OAuth2Server(self.CLIENT_ID, self.CLIENT_SECRET)
-            server.browser_authorize()
-
-            with open('token.pickle', 'wb') as f:
-                pprint.pprint(server.fitbit.client.session.token)
-                pickle.dump(server.fitbit.client.session.token, f)
-
-    def get_raw_hr_data(self, day):
-        """Retrieve the raw HR data for a given day from fitbit
-
-        Args:
-            day:
-              String representing the day we wan to get. The string should be formatted in
-              the format YYYY-MM-DD
-        """
-        
-        
-        self.obtain_tokens()
-        
-        print("Retrieving heart-rate data for day {} from fitbit API".format(day))
-        with open('token.pickle', 'rb') as f:
-            token = pickle.load(f)
-
-            ACCESS_TOKEN = str(token['access_token'])
-            REFRESH_TOKEN = str(token['refresh_token'])
-            EXPIRES_AT = float(str(token['expires_at']))
-
-
-        auth2_client = fitbit.Fitbit(
-            self.CLIENT_ID,
-            self.CLIENT_SECRET,
-            oauth2=True,
-            access_token=ACCESS_TOKEN,
-            refresh_token=REFRESH_TOKEN,
-            expires_at=EXPIRES_AT,
-            refresh_cb=self.refresh_cb
-        )
-
-
-        fb_data = auth2_client.intraday_time_series('activities/heart', base_date=day, detail_level='1sec')
-
-        df_hr_data = pd.DataFrame(fb_data['activities-heart-intraday']['dataset']) 
-
-        return df_hr_data     
