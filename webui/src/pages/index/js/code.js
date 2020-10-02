@@ -6,6 +6,7 @@ const datetimepicker = require('jquery-datetimepicker')
 
 
 
+window.$ = $
 //window.bootstrap = bootstrap
 //window.aaa = DateTime
 
@@ -19,7 +20,7 @@ let store = {}
 store.selection = {}
 
 store.selection._bucket_size = "60" ; 
-store.selection._rolling_average_number_of_periods = "10" ; 
+store.selection._rolling_average_number_periods = "10" ; 
 store.selection._start_day_range = "20200101" ; 
 store.selection._end_day_range = DateTime.local().toFormat("yyyyLLdd"); 
 store.selection._active_day = DateTime.local().toFormat("yyyyLLdd"); 
@@ -251,7 +252,9 @@ function importData(date_range_start, date_range_end, separate_dates){
         body: JSON.stringify({
             date_range_start: date_range_start,
             date_range_end: date_range_end,
-            separate_dates: separate_dates
+            separate_dates: separate_dates,
+			bucket_size: store.selection._bucket_size,
+			rolling_average_number_periods: store.selection._rolling_average_number_periods
         }),
         headers: {
             "Content-type": "application/json; charset=UTF-8"
@@ -291,7 +294,7 @@ function importData(date_range_start, date_range_end, separate_dates){
 
 
 function loadRangeData(){
-    let api_query_url_quantiles = "/api/quantiles/" + store.selection._start_day_range + "/" + store.selection._end_day_range + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_of_periods=" + store.selection._rolling_average_number_of_periods + "&interval=" + store.selection._interval_range + "&weekday=" + store.selection._relevant_weekdays
+    let api_query_url_quantiles = "/api/quantiles/" + store.selection._start_day_range + "/" + store.selection._end_day_range + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods + "&interval=" + store.selection._interval_range + "&weekday=" + store.selection._relevant_weekdays
 
     store.selection.active_downloads += 1 ; 
     $("#reloadspinner").addClass('fa-spin') ;
@@ -312,7 +315,7 @@ function loadRangeData(){
 
 
 function loadDailyData(){
-    let api_query_url_day = "/api/day/" + store.selection._active_day + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_of_periods=" + store.selection._rolling_average_number_of_periods ; 
+    let api_query_url_day = "/api/day/" + store.selection._active_day + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods ; 
 
 
     store.selection.active_downloads += 1 ; 
@@ -341,8 +344,8 @@ function loadAllData(){
     store.selection.active_downloads += 1 ; 
     $("#reloadspinner").addClass('fa-spin') ;
 
-    let api_query_url_day = "/api/day/" + store.selection._active_day + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_of_periods=" + store.selection._rolling_average_number_of_periods ; 
-    let api_query_url_quantiles = "/api/quantiles/" + store.selection._start_day_range + "/" + store.selection._end_day_range + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_of_periods=" + store.selection._rolling_average_number_of_periods + "&interval=" + store.selection._interval_range + "&weekday=" + store.selection._relevant_weekdays
+    let api_query_url_day = "/api/day/" + store.selection._active_day + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods ; 
+    let api_query_url_quantiles = "/api/quantiles/" + store.selection._start_day_range + "/" + store.selection._end_day_range + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods + "&interval=" + store.selection._interval_range + "&weekday=" + store.selection._relevant_weekdays
     Promise.all([
         d3.json(api_query_url_quantiles),
         d3.json(api_query_url_day)
@@ -509,6 +512,18 @@ $(document).ready(function() {
 
 
 
+	$(".dropdown-menu[aria-labelledby=dropdownSmoothing] a").click(function () {
+		// Get text from anchor tag
+		var _method = $(this).text();
+		$('#dropdownSmoothing').text(_method)
+
+		$(".method-options").hide()
+		$(".method-options-" + $(this).attr("data-value")   ).show()
+	});
+
+	$("#dropdownSmoothingOptions a").filter("[data-initial=1]").trigger("click");
+
+
 
     $.datetimepicker.setLocale('en');
     $("#datepicker").datetimepicker({
@@ -525,9 +540,6 @@ $(document).ready(function() {
         store.selection._active_day = DateTime.fromISO($("#datepicker").val()).toFormat("yyyyLLdd"); 
         loadDailyData()
     })
-
-
-
 
 
 
@@ -577,7 +589,7 @@ $(document).ready(function() {
 
 
         $("#bucketsize").val(store.selection._bucket_size)
-        $("#rollingaverage").val(store.selection._rolling_average_number_of_periods)
+        $("#rollingaverage").val(store.selection._rolling_average_number_periods)
         $("#range_start").val( DateTime.fromISO(store.selection._start_day_range).toFormat('yyyy-LL-dd'))
         $("#range_end").val( DateTime.fromISO(store.selection._end_day_range).toFormat('yyyy-LL-dd'))
         $("#value_range").val(store.selection._interval_range )
@@ -598,7 +610,7 @@ $(document).ready(function() {
 
         store.selection._relevant_weekdays = checked.join(',')
         store.selection._bucket_size = $("#bucketsize").val()
-        store.selection._rolling_average_number_of_periods = $("#rollingaverage").val()
+        store.selection._rolling_average_number_periods = $("#rollingaverage").val()
         store.selection._start_day_range = DateTime.fromISO( $("#range_start").val()).toFormat("yyyyLLdd")
         store.selection._end_day_range = DateTime.fromISO( $("#range_end").val()).toFormat("yyyyLLdd")
         store.selection._interval_range = $("#value_range").val()
