@@ -11,10 +11,6 @@
 		    <% htmlWebpackPlugin.options.all_pages.forEach(function(el, index) { %>
 			    <li class="nav-item<%= htmlWebpackPlugin.options.pagename === el.page ? ' active' : '' %>"><a class="nav-link" href="./<%= el.page %>.html"><%- el.description %></a></li>
 		    <% }) %>
-
-		    <% console.log("**********************************************") %>
-		    <% console.log("Hello world: " + htmlWebpackPlugin.options.pagename) %>
-
                 </ul>            
             </div>
         </div>
