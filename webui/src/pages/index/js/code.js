@@ -84,6 +84,8 @@ function updateScales(){
     store.x.range([0,svg_properties.width -svg_properties.inner_margin_left - svg_properties.inner_margin_right])
     store.y.range([svg_properties.height, 0]);
 
+	store.y.domain([0, store.gui.max_heart_rate])
+
     console.log(svg_properties)
     svg_properties.svg_select.select(".xaxis")
         .transition().duration(750)
@@ -535,13 +537,16 @@ function handleKeyDown(e) {
     }
 }
 
+function redraw(){
+	determine_svg_size() ; 
+	updateScales() ;
+	// show data again
+	showRangeData() ; 
+	showDailyData() ; 
+}
+
 $(document).ready(function() {
     $(window).resize(function() {
-        determine_svg_size() ; 
-        updateScales() ;
-        // show data again
-		showRangeData() ; 
-		showDailyData() ; 
     })  
 
 
@@ -632,6 +637,7 @@ $(document).ready(function() {
         $("#gaussian-stddev").val(store.settings.gaussian_stddev)
 
 		$("#smoothing-method").val(store.settings.smoothing_method)  
+		$("#max-heart-rate").val(store.gui.max_heart_rate)  
 
 
         $("#reserveModal").modal() ; 
@@ -658,6 +664,10 @@ $(document).ready(function() {
 
 		store.settings.smoothing_method = $("#smoothing-method").val()
 
+
+		store.gui.max_heart_rate = parseInt($("#max-heart-rate").val()) 
+
+
 		console.log(store.settings)
 
 		localStorage.setItem("store", JSON.stringify(store))
@@ -667,7 +677,7 @@ $(document).ready(function() {
         $("#reserveModal").modal('hide') ; 
 
 
-
+		redraw()
         importData(store.settings.range_start_day, store.settings.range_end_day, [store.settings.active_day])
 
 
