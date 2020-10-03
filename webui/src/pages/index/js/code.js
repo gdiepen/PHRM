@@ -38,7 +38,7 @@ if (localStorage.getItem("store") === null){
 	store.settings.range_interval = "0.6" ;
 	store.settings.range_relevant_weekdays = "0,1,2,3,4,5,6";
 
-	store.gui.max_heart_rate = 220
+	store.gui.max_heart_rate = 200
 
 	localStorage.setItem("store", JSON.stringify(store))
 }
