@@ -18,7 +18,7 @@ module.exports = {
     entry: {
         index: './src/pages/index/main.js',
         about: './src/pages/about/main.js',
-        contact: './src/pages/contact/main.js'
+        compare_ranges: './src/pages/compare_ranges/main.js'
     },
   // how to write the compiled files to disk
   // https://webpack.js.org/concepts/output/
@@ -104,10 +104,10 @@ module.exports = {
             }
         }),
         new HtmlWebpackPlugin({
-            template: './src/pages/contact/tmpl.ejs',
+            template: './src/pages/compare_ranges/tmpl.ejs',
             inject: true,
-            chunks: ['contact'],
-            filename: 'contact.html',
+            chunks: ['compare_ranges'],
+            filename: 'compare_ranges.html',
 	    favWord: "computer"
 
         }),

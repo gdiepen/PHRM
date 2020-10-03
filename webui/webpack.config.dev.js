@@ -13,8 +13,8 @@ const app_pages = [
 		description: '<span class="fa fa-home fa-lg"></span> Daily heart rate'
 	},
 	{
-		page: 'contact',
-		description: '<span class="fa fa-list fa-lg"></span> Heart rate over time'
+		page: 'compare_ranges',
+		description: '<span class="fa fa-list fa-lg"></span> Compare Date Ranges'
 	},
 	{
 		page: 'about',
@@ -54,7 +54,7 @@ module.exports = {
     entry: {
         index: './src/pages/index/main.js',
         about: './src/pages/about/main.js',
-        contact: './src/pages/contact/main.js'
+        compare_ranges: './src/pages/compare_ranges/main.js'
     },
 
 
