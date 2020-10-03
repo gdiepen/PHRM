@@ -42,10 +42,10 @@ class FitbitStore:
         self.smoothing_method = settings.get("smoothing_method")
 
         if self.smoothing_method == "gaussian":
-            self.DB = f"fitbit_data_gaussian_{self.gaussian_bucket_size}_{self.gaussian_stddev}.sqlite3"
+            self.DB = f"data/fitbit/processed/fitbit_data_gaussian_{self.gaussian_bucket_size}_{self.gaussian_stddev}.sqlite3"
             self.SECONDS_IN_BUCKET = self.gaussian_bucket_size
         elif self.smoothing_method == "moving-average":
-            self.DB = f"fitbit_data_moving_average_{self.moving_average_bucket_size}_{self.moving_average_window}.sqlite3"
+            self.DB = f"data/fitbit/processed/fitbit_data_moving_average_{self.moving_average_bucket_size}_{self.moving_average_window}.sqlite3"
             self.SECONDS_IN_BUCKET = self.moving_average_bucket_size
         else:
             raise Exception(f"Unknown method {self.smoothing_method}")
@@ -54,11 +54,18 @@ class FitbitStore:
         self.raw_data = importer.FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
         
     def init_base_tables(self):
+        if not os.path.exists("data"):
+            os.mkdir("data")
+        if not os.path.exists("data/fitbit"):
+            os.mkdir("data/fitbit")
+        if not os.path.exists("data/fitbit/processed"):
+            os.mkdir("data/fitbit/processed")
+        
         conn = sqlite3.connect(self.DB)
 
         cursor = conn.cursor()
         
-        cursor.execute("CREATE TABLE IF NOT EXISTS hr_data (day int, weekday int, bucket int, value double)")
+        cursor.execute("CREATE TABLE IF NOT EXISTS hr_data (day int, weekday int, bucket int, interpolated_value int, value double)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_day ON hr_data (day)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_bucket ON hr_data (bucket)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_hr_data_weekday ON hr_data (weekday)")
@@ -116,9 +123,9 @@ class FitbitStore:
                 # process the results
 
                 if self.smoothing_method == "gaussian":
-                    df_processed = self.process_days_gaussian(df_raw_data).loc[:, ["day", "weekday", "bucket", "value"]]
+                    df_processed = self.process_days_gaussian(df_raw_data).loc[:, ["day", "weekday", "bucket", "interpolated_value", "value"]]
                 else:
-                    df_processed = self.process_days_moving_average(df_raw_data).loc[:, ["day", "weekday", "bucket", "value"]]
+                    df_processed = self.process_days_moving_average(df_raw_data).loc[:, ["day", "weekday", "bucket", "interpolated_value", "value"]]
 
                 # Now keep only the days that are actually relevant (i.e. remove all the surrounding days, we 
                 # do not have to write those)
@@ -175,8 +182,14 @@ class FitbitStore:
 
         df = df_all.merge(df, how="left", left_index=True, right_on="day_bucket").drop("day_bucket", axis=1).rename(columns={"day_x":"day", "bucket_x":"bucket"}).sort_values(["day", "bucket"])
 
+        df.loc[:, "interpolated_value"] = 0
+        df.loc[df.value.isna(), "interpolated_value"] = 1
 
-        df = df.groupby(["day", "bucket"]).median().reset_index().loc[:, ["day", "bucket", "value"]]
+        df = df \
+            .groupby(["day", "bucket"]) \
+            .agg( {"value": "median", "interpolated_value": "max"}) \
+            .reset_index() \
+            .loc[:, ["day", "bucket", "interpolated_value", "value"]]
 
 
         df.loc[:, "value"] = df.loc[:, "value"].interpolate()
@@ -225,6 +238,8 @@ class FitbitStore:
                 .loc[:, ["day", "bucket", "value"]]
 
 
+        df.loc[:, "interpolated_value"] = 0
+        df.loc[df.value.isna(), "interpolated_value"] = 1
         
         gauss_1D_kernel = Gaussian1DKernel(self.gaussian_stddev)
         df.loc[:, "value"] = convolve(df.loc[:, "value"], gauss_1D_kernel)
@@ -259,8 +274,18 @@ class FitbitStore:
         result = pd.read_sql_query(f"select * from hr_data where day='{day}' order by bucket", conn)
         conn.close()
 
+        # We have to get rid of the initial interpolated values
+        # and the tailing interpolated values
+        if len(result) > 0:
+            start_index = result.interpolated_value.loc[lambda x: x==0].index[0]
+            end_index = result.interpolated_value.loc[lambda x: x==0].index[-1]
+
+            result = result.loc[start_index:end_index, :]
+
+        
+
         result.loc[:, 'hours_since_midnight'] = result.bucket / 3600
-        result.drop( ['bucket'], axis=1, inplace=True)
+        result.drop( ['bucket', "interpolated_value"], axis=1, inplace=True)
    
         return result
 
@@ -271,14 +296,22 @@ class FitbitStore:
 
         weekday_filter = [str(x) for x in weekday_filter]
 
-        sql = f"select bucket,value from hr_data where day >= '{range_start}' and day <= '{range_end}' and weekday in ({','.join(weekday_filter)}) order by day, bucket"
+        sql = f"select bucket,interpolated_value,value from hr_data where day >= '{range_start}' and day <= '{range_end}' and weekday in ({','.join(weekday_filter)}) order by day, bucket"
         conn = sqlite3.connect(self.DB)
         result = pd.read_sql_query(sql, conn)
         conn.close()
 
 
+        # We have to get rid of the initial interpolated values
+        # and the tailing interpolated values
+        if len(result) > 0:
+            start_index = result.interpolated_value.loc[lambda x: x==0].index[0]
+            end_index = result.interpolated_value.loc[lambda x: x==0].index[-1]
+
+            result = result.loc[start_index:end_index, :]
+
         result.loc[:, 'hours_since_midnight'] = result.bucket / 3600
-        result.drop( ['bucket'], axis=1, inplace=True)
+        result.drop( ['bucket', "interpolated_value"], axis=1, inplace=True)
 
         quantile_top = 1 - (1-interval)/2.0
         quantile_bottom = (1-interval)/2.0
