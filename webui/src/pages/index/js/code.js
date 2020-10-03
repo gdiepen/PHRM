@@ -204,13 +204,11 @@ function initialSetup(){
 
 
     function mousemove() {
-
         var x0 = store.x.invert(d3.mouse(this)[0]),
             i = bisectTime(store.data_day, x0, 1),
             d0 = store.data_day[i - 1],
             d1 = store.data_day[i]
 
-		var focus = d3.select(".focus")
 		if (d1 === undefined){
 			focus.style("display", "none");
 			return
@@ -540,13 +538,14 @@ function handleKeyDown(e) {
 function redraw(){
 	determine_svg_size() ; 
 	updateScales() ;
-	// show data again
-	showRangeData() ; 
-	showDailyData() ; 
 }
 
 $(document).ready(function() {
     $(window).resize(function() {
+		redraw()
+
+		showRangeData() ; 
+		showDailyData() ; 
     })  
 
 
