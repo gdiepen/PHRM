@@ -10,22 +10,48 @@ from . import gather_keys_oauth2 as Oauth2
 from . import importer
 import sqlite3
 
+from astropy.convolution import Gaussian1DKernel, convolve
 
 class FitbitStore:
-    def __init__(self, CLIENT_ID, CLIENT_SECRET):
+    def __init__(self, CLIENT_ID, CLIENT_SECRET, settings):
         self.CLIENT_ID = CLIENT_ID
         self.CLIENT_SECRET = CLIENT_SECRET
         self.data_cache = {}
 
-        self.DB = "fitbit_data.sqlite3"
+        self.moving_average_bucket_size = settings.get("moving_average_bucket_size")
+        self.moving_average_window = settings.get("moving_average_window")
+
+        if self.moving_average_window is not None:
+            self.moving_average_window = int(self.moving_average_window)
+        if self.moving_average_bucket_size is not None:
+            self.moving_average_bucket_size = int(self.moving_average_bucket_size)
+
+
+
+        self.gaussian_bucket_size = settings.get("gaussian_bucket_size")
+        self.gaussian_stddev = settings.get("gaussian_stddev")
+
+
+
+        if self.gaussian_stddev is not None:
+            self.gaussian_stddev = float(self.gaussian_stddev)
+        if self.gaussian_bucket_size is not None:
+            self.gaussian_bucket_size = int(self.gaussian_bucket_size)
+
+
+        self.smoothing_method = settings.get("smoothing_method")
+
+        if self.smoothing_method == "gaussian":
+            self.DB = f"fitbit_data_gaussian_{self.gaussian_bucket_size}_{self.gaussian_stddev}.sqlite3"
+            self.SECONDS_IN_BUCKET = self.gaussian_bucket_size
+        elif self.smoothing_method == "moving-average":
+            self.DB = f"fitbit_data_moving_average_{self.moving_average_bucket_size}_{self.moving_average_window}.sqlite3"
+            self.SECONDS_IN_BUCKET = self.moving_average_bucket_size
+        else:
+            raise Exception(f"Unknown method {self.smoothing_method}")
 
         self.init_base_tables()
-
         self.raw_data = importer.FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
-
-
-        self.SECONDS_IN_BUCKET = 60
-        self.ROLLING_AVERAGE_WINDOW = 10
         
     def init_base_tables(self):
         conn = sqlite3.connect(self.DB)
@@ -76,7 +102,7 @@ class FitbitStore:
 
         print(f"Missing processed days are {missing_days}")
 
-        process_chunks = self.to_chunks(missing_days, 5)
+        process_chunks = self.to_chunks(missing_days, 30)
 
         conn = sqlite3.connect(self.DB)
         cursor = conn.cursor()
@@ -88,7 +114,11 @@ class FitbitStore:
 
             if len(df_raw_data) > 0:
                 # process the results
-                df_processed = self.process_days(df_raw_data).loc[:, ["day", "weekday", "bucket", "value"]]
+
+                if self.smoothing_method == "gaussian":
+                    df_processed = self.process_days_gaussian(df_raw_data).loc[:, ["day", "weekday", "bucket", "value"]]
+                else:
+                    df_processed = self.process_days_moving_average(df_raw_data).loc[:, ["day", "weekday", "bucket", "value"]]
 
                 # Now keep only the days that are actually relevant (i.e. remove all the surrounding days, we 
                 # do not have to write those)
@@ -121,7 +151,7 @@ class FitbitStore:
 
 
 
-    def process_days(self, df):
+    def process_days_moving_average(self, df):
         # create the bucket based on the seconds
         # Calculate the median per bucket
         # Do a linear interpolation
@@ -150,7 +180,7 @@ class FitbitStore:
 
 
         df.loc[:, "value"] = df.loc[:, "value"].interpolate()
-        df.loc[:, "value"] = df.loc[:, "value"].rolling(self.ROLLING_AVERAGE_WINDOW).mean()
+        df.loc[:, "value"] = df.loc[:, "value"].rolling(self.moving_average_window).mean()
 
         df.loc[:, "weekday"] = pd.to_datetime(df.day.astype(str), format="%Y%m%d").dt.weekday
 
@@ -158,6 +188,67 @@ class FitbitStore:
         df = df.loc[lambda x: ~((x.day==today) & (x.bucket > max_bucket_today)), :]
 
         return df
+
+
+    def process_days_gaussian(self, df):
+        # create the bucket based on the seconds
+        # Calculate the median per bucket
+        # Do a linear interpolation
+        # Do a rolling average
+        today = int(datetime.now().strftime("%Y%m%d"))
+        max_seconds_today = df.loc[lambda x:x.day==today, "seconds"].max()
+        max_bucket_today = self.SECONDS_IN_BUCKET * (max_seconds_today//self.SECONDS_IN_BUCKET)
+
+        # Determine the max bucket if we are today
+
+        # ensure all buckets are there for all of the days
+        days = df.day.unique()
+        buckets = [self.SECONDS_IN_BUCKET * x for x in range( (3600*24 -1)//self.SECONDS_IN_BUCKET) ]
+        df_all = pd.DataFrame(data=itertools.product(days,buckets), columns=["day", "bucket"])
+        df_all.loc[:, "day_bucket"] = df_all.day.astype(str) + df_all.bucket.astype(str)
+        df_all.set_index("day_bucket", inplace=True)
+
+        
+        df.loc[:, "bucket"] = self.SECONDS_IN_BUCKET * (df.loc[:, "seconds"] // self.SECONDS_IN_BUCKET)
+        df.loc[:, "day_bucket"] = df.day.astype(str) + df.bucket.astype(str)
+
+        df = df_all.merge( df, how="left", left_index=True, right_on="day_bucket") \
+            .drop("day_bucket", axis=1) \
+            .rename(columns={"day_x":"day", "bucket_x":"bucket"}) \
+            .sort_values(["day", "bucket"])
+
+
+        df = df \
+                .groupby(["day", "bucket"]) \
+                .median() \
+                .reset_index() \
+                .loc[:, ["day", "bucket", "value"]]
+
+
+        
+        gauss_1D_kernel = Gaussian1DKernel(self.gaussian_stddev)
+        df.loc[:, "value"] = convolve(df.loc[:, "value"], gauss_1D_kernel)
+        df.loc[:, "value"] = df.loc[:, "value"].interpolate()
+
+        df.loc[:, "weekday"] = pd.to_datetime(df.day.astype(str), format="%Y%m%d").dt.weekday
+
+        # Remove all buckets that are today after the last bucket we have for today
+        df = df.loc[lambda x: ~((x.day==today) & (x.bucket > max_bucket_today)), :]
+
+        return df
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def to_chunks(self, l, n):
         for i in range( math.ceil( len(l)/ n ) ):
@@ -191,6 +282,9 @@ class FitbitStore:
 
         quantile_top = 1 - (1-interval)/2.0
         quantile_bottom = (1-interval)/2.0
+
+        # Force the value column to be float
+        result.loc[:, 'value'] = result.loc[:, 'value'].astype(float)
 
         a_m = result.groupby("hours_since_midnight").quantile(0.5).value
         a_h = result.groupby("hours_since_midnight").quantile(quantile_top).value
