@@ -15,7 +15,7 @@ class FitbitImporter:
         self.CLIENT_SECRET = CLIENT_SECRET
         self.data_cache = {}
 
-        self.DB = "fitbit_raw_data.sqlite3"
+        self.DB = "data/fitbit/raw/fitbit_raw_data.sqlite3"
 
         self.init_base_tables()
 
@@ -23,6 +23,13 @@ class FitbitImporter:
         
 
     def init_base_tables(self):
+        if not os.path.exists("data"):
+            os.mkdir("data")
+        if not os.path.exists("data/fitbit"):
+            os.mkdir("data/fitbit")
+        if not os.path.exists("data/fitbit/raw"):
+            os.mkdir("data/fitbit/raw")
+
         conn = sqlite3.connect(self.DB)
         
         cursor =  conn.cursor()
