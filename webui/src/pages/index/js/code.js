@@ -10,6 +10,7 @@ window.$ = $
 //window.bootstrap = bootstrap
 //window.aaa = DateTime
 
+
 let svg_properties = {}
 svg_properties.inner_margin_left = 60 ;
 svg_properties.inner_margin_top = 10 ;
@@ -18,15 +19,37 @@ svg_properties.inner_margin_bottom = 10 ;
 let store = {}
 
 store.selection = {}
-
-store.selection._bucket_size = "60" ; 
-store.selection._rolling_average_number_periods = "10" ; 
-store.selection._start_day_range = "20200101" ; 
-store.selection._end_day_range = DateTime.local().toFormat("yyyyLLdd"); 
-store.selection._active_day = DateTime.local().toFormat("yyyyLLdd"); 
-store.selection._interval_range = "0.6" ;
-store.selection._relevant_weekdays = "0,1,2,3,4,5,6";
 store.selection.active_downloads = 0  ;
+
+
+let initialized = false
+store.settings = {}
+store.gui = {}
+
+
+if (localStorage.getItem("store") === null){
+	store.settings.smoothing_method = "gaussian" ;
+	store.settings.gaussian_bucket_size = "60" ; 
+	store.settings.gaussian_stddev = "2" ; 
+	store.settings.moving_average_bucket_size = "60" ; 
+	store.settings.moving_average_window = "10" ; 
+	store.settings.range_start_day = "20200101" ; 
+	store.settings.range_end_day = DateTime.local().toFormat("yyyyLLdd"); 
+	store.settings.range_interval = "0.6" ;
+	store.settings.range_relevant_weekdays = "0,1,2,3,4,5,6";
+
+	store.gui.max_heart_rate = 220
+
+	localStorage.setItem("store", JSON.stringify(store))
+}
+else{
+	store.settings = JSON.parse(localStorage.getItem("store")).settings
+	store.gui = JSON.parse(localStorage.getItem("store")).gui
+	initialized=true
+}
+
+window.mystore = store.settings
+store.settings.active_day = DateTime.local().toFormat("yyyyLLdd"); 
 
 
 $("#datepicker").val(DateTime.local().toFormat("yyyy-LL-dd"))
@@ -127,7 +150,7 @@ function initialSetup(){
 
     // Add Y axis
     store.y = d3.scaleLinear()
-        .domain([0, 200])
+        .domain([0, store.gui.max_heart_rate])
         .range([svg_properties.height, 0]);
 
     svg_properties.yAxis = d3.axisLeft(store.y)
@@ -219,9 +242,9 @@ function initialSetup(){
         .attr("transform", "translate(-50,"+svg_properties.height/2+")")
         .append("text").attr("font-size", "30px").text('❮')
         .on("click", function(){
-            let prev_day = DateTime.fromISO(store.selection._active_day).plus({days:-1})
+            let prev_day = DateTime.fromISO(store.settings.active_day).plus({days:-1})
 
-            store.selection._active_day = prev_day.toFormat("yyyyLLdd")
+            store.settings.active_day = prev_day.toFormat("yyyyLLdd")
             $("#datepicker").val(prev_day.toFormat("yyyy-LL-dd"))
 
             loadDailyData()
@@ -232,10 +255,10 @@ function initialSetup(){
         .attr("transform", "translate("+ (svg_properties.width - 110)+","+svg_properties.height/2+")")
         .append("text").attr("font-size", "30px").text('❯')
         .on("click", function(){
-            let next_day = DateTime.fromISO(store.selection._active_day).plus({days:1})
+            let next_day = DateTime.fromISO(store.settings.active_day).plus({days:1})
 
 
-            store.selection._active_day = next_day.toFormat("yyyyLLdd")
+            store.settings.active_day = next_day.toFormat("yyyyLLdd")
             $("#datepicker").val(next_day.toFormat("yyyy-LL-dd"))
 
             loadDailyData()
@@ -247,15 +270,16 @@ function importData(date_range_start, date_range_end, separate_dates){
     store.selection.active_downloads += 1 ;
     $("#reloadspinner").addClass('fa-spin')
 
+	let post_arguments = JSON.parse(JSON.stringify(store.settings))
+
+	post_arguments.range_start_day = date_range_start ; 
+	post_arguments.range_end_day = date_range_end ; 
+	post_arguments.separate_dates = separate_dates 
+
+	console.log(post_arguments)
     d3.json('/api/refresh_data', {
         method: "POST",
-        body: JSON.stringify({
-            date_range_start: date_range_start,
-            date_range_end: date_range_end,
-            separate_dates: separate_dates,
-			bucket_size: store.selection._bucket_size,
-			rolling_average_number_periods: store.selection._rolling_average_number_periods
-        }),
+        body: JSON.stringify(post_arguments),
         headers: {
             "Content-type": "application/json; charset=UTF-8"
         }
@@ -294,7 +318,10 @@ function importData(date_range_start, date_range_end, separate_dates){
 
 
 function loadRangeData(){
-    let api_query_url_quantiles = "/api/quantiles/" + store.selection._start_day_range + "/" + store.selection._end_day_range + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods + "&interval=" + store.selection._interval_range + "&weekday=" + store.selection._relevant_weekdays
+	const searchParams = new URLSearchParams()
+	Object.entries(store.settings).forEach(([key, value]) => searchParams.append(key, value));
+
+    let api_query_url_quantiles = "/api/quantiles/" + store.settings.range_start_day + "/" + store.settings.range_end_day + "?" + searchParams.toString()
 
     store.selection.active_downloads += 1 ; 
     $("#reloadspinner").addClass('fa-spin') ;
@@ -315,8 +342,10 @@ function loadRangeData(){
 
 
 function loadDailyData(){
-    let api_query_url_day = "/api/day/" + store.selection._active_day + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods ; 
+	const searchParams = new URLSearchParams()
+	Object.entries(store.settings).forEach(([key, value]) => searchParams.append(key, value));
 
+    let api_query_url_day = "/api/day/" + store.settings.active_day + "?" + searchParams.toString()
 
     store.selection.active_downloads += 1 ; 
     $("#reloadspinner").addClass('fa-spin') ;
@@ -344,8 +373,16 @@ function loadAllData(){
     store.selection.active_downloads += 1 ; 
     $("#reloadspinner").addClass('fa-spin') ;
 
-    let api_query_url_day = "/api/day/" + store.selection._active_day + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods ; 
-    let api_query_url_quantiles = "/api/quantiles/" + store.selection._start_day_range + "/" + store.selection._end_day_range + "?bucket_size=" + store.selection._bucket_size + "&rolling_average_number_periods=" + store.selection._rolling_average_number_periods + "&interval=" + store.selection._interval_range + "&weekday=" + store.selection._relevant_weekdays
+	const searchParams = new URLSearchParams()
+	Object.entries(store.settings).forEach(([key, value]) => searchParams.append(key, value));
+
+    let api_query_url_day = "/api/day/" + store.settings.active_day + "?" + searchParams.toString()
+    let api_query_url_quantiles = "/api/quantiles/" + store.settings.range_start_day + "/" + store.settings.range_end_day + "?" + searchParams.toString()
+
+
+
+
+
     Promise.all([
         d3.json(api_query_url_quantiles),
         d3.json(api_query_url_day)
@@ -404,7 +441,7 @@ function showDailyData(){
         .style('opacity' , '0')
         .transition()
         .duration(100)
-        .text(DateTime.fromISO(store.selection._active_day).toFormat("cccc LLLL d, yyyy"))
+        .text(DateTime.fromISO(store.settings.active_day).toFormat("cccc LLLL d, yyyy"))
         .style('opacity' , '1')
         .end()
 
@@ -424,7 +461,7 @@ function showRangeData(){
         .attr("d", d3.area()
             .x(function (d) {return store.x(d.hours_since_midnight)})
             .y0(function (d) {return store.y(0)})
-            .y1(function (d) {return store.y(200)})
+            .y1(function (d) {return store.y(store.gui.max_heart_rate)})
         )
         .merge(range_points)
         .transition()
@@ -473,24 +510,24 @@ function handleKeyDown(e) {
         if (e.code === "Home"){
 
             console.log("Home button!~!")
-            store.selection._active_day = DateTime.local().toFormat('yyyyLLdd')
+            store.settings.active_day = DateTime.local().toFormat('yyyyLLdd')
             $("#datepicker").val(DateTime.local().toFormat('yyyy-LL-dd'))
 
 
             loadDailyData()
         }
         if (e.code === "ArrowLeft"){
-            let next_day = DateTime.fromISO(store.selection._active_day).plus({days: -1})
+            let next_day = DateTime.fromISO(store.settings.active_day).plus({days: -1})
 
-            store.selection._active_day = next_day.toFormat("yyyyLLdd")
+            store.settings.active_day = next_day.toFormat("yyyyLLdd")
             $("#datepicker").val(next_day.toFormat("yyyy-LL-dd"))
 
             loadDailyData()
         }
         if (e.code === "ArrowRight"){
-            let next_day = DateTime.fromISO(store.selection._active_day).plus({days: 1})
+            let next_day = DateTime.fromISO(store.settings.active_day).plus({days: 1})
 
-            store.selection._active_day = next_day.toFormat("yyyyLLdd")
+            store.settings.active_day = next_day.toFormat("yyyyLLdd")
             $("#datepicker").val(next_day.toFormat("yyyy-LL-dd"))
 
             loadDailyData()
@@ -503,11 +540,8 @@ $(document).ready(function() {
         determine_svg_size() ; 
         updateScales() ;
         // show data again
-        showRangeData() ; 
-        showDailyData() ; 
-
-
-
+		showRangeData() ; 
+		showDailyData() ; 
     })  
 
 
@@ -519,16 +553,17 @@ $(document).ready(function() {
 
 		$(".method-options").hide()
 		$(".method-options-" + $(this).attr("data-value")   ).show()
+
+		$("#smoothing-method").val($(this).attr("data-value"));
 	});
 
 	$("#dropdownSmoothingOptions a").filter("[data-initial=1]").trigger("click");
 
 
-
     $.datetimepicker.setLocale('en');
     $("#datepicker").datetimepicker({
         onSelectDate: function(){
-            store.selection._active_day = DateTime.fromISO($("#datepicker").val()).toFormat("yyyyLLdd"); 
+            store.settings.active_day = DateTime.fromISO($("#datepicker").val()).toFormat("yyyyLLdd"); 
             loadDailyData()
         },
         timepicker:false,
@@ -537,7 +572,7 @@ $(document).ready(function() {
 
     d3.select("#datepicker").on("change", function(){
         console.log( $("#datepicker").val())
-        store.selection._active_day = DateTime.fromISO($("#datepicker").val()).toFormat("yyyyLLdd"); 
+        store.settings.active_day = DateTime.fromISO($("#datepicker").val()).toFormat("yyyyLLdd"); 
         loadDailyData()
     })
 
@@ -577,23 +612,27 @@ $(document).ready(function() {
 
 
     d3.select("#reloadButton").on("click", function(){
-        importData(store.selection._start_day_range, store.selection._end_day_range, [store.selection._active_day])
+        importData(store.settings.range_start_day, store.settings.range_end_day, [store.settings.active_day])
     })
 
 
     $("#settingsButton").click(function(){
 
-        store.selection._relevant_weekdays.split(",").forEach(function(e){
+        store.settings.range_relevant_weekdays.split(",").forEach(function(e){
             $('[name=inlineWeekdayOptions][value='+e+']' ).prop("checked", true)
         })
 
 
-        $("#bucketsize").val(store.selection._bucket_size)
-        $("#rollingaverage").val(store.selection._rolling_average_number_periods)
-        $("#range_start").val( DateTime.fromISO(store.selection._start_day_range).toFormat('yyyy-LL-dd'))
-        $("#range_end").val( DateTime.fromISO(store.selection._end_day_range).toFormat('yyyy-LL-dd'))
-        $("#value_range").val(store.selection._interval_range )
-        $("#bucketsize").val(store.selection._bucket_size )
+        $("#moving-average-bucket-size").val(store.settings.moving_average_bucket_size)
+        $("#moving-average-window").val(store.settings.moving_average_window)
+        $("#range_start").val( DateTime.fromISO(store.settings.range_start_day).toFormat('yyyy-LL-dd'))
+        $("#range_end").val( DateTime.fromISO(store.settings.range_end_day).toFormat('yyyy-LL-dd'))
+        $("#range-interval").val(store.settings.range_interval )
+        $("#gaussian-bucket-size").val(store.settings.gaussian_bucket_size )
+        $("#gaussian-stddev").val(store.settings.gaussian_stddev)
+
+		$("#smoothing-method").val(store.settings.smoothing_method)  
+
 
         $("#reserveModal").modal() ; 
 
@@ -608,20 +647,28 @@ $(document).ready(function() {
             checked.push($(this).val());
         });
 
-        store.selection._relevant_weekdays = checked.join(',')
-        store.selection._bucket_size = $("#bucketsize").val()
-        store.selection._rolling_average_number_periods = $("#rollingaverage").val()
-        store.selection._start_day_range = DateTime.fromISO( $("#range_start").val()).toFormat("yyyyLLdd")
-        store.selection._end_day_range = DateTime.fromISO( $("#range_end").val()).toFormat("yyyyLLdd")
-        store.selection._interval_range = $("#value_range").val()
-        store.selection._bucket_size = $("#bucketsize").val()
+        store.settings.moving_average_bucket_size = $("#moving-average-bucket-size").val()
+        store.settings.moving_average_window = $("#moving-average-window").val()
+        store.settings.range_relevant_weekdays = checked.join(',')
+        store.settings.range_start_day = DateTime.fromISO( $("#range_start").val()).toFormat("yyyyLLdd")
+        store.settings.range_end_day = DateTime.fromISO( $("#range_end").val()).toFormat("yyyyLLdd")
+        store.settings.range_interval = $("#range-interval").val()
+        store.settings.gaussian_bucket_size = $("#gaussian-bucket-size").val()
+        store.settings.gaussian_stddev = $("#gaussian-stddev").val()
+
+		store.settings.smoothing_method = $("#smoothing-method").val()
+
+		console.log(store.settings)
+
+		localStorage.setItem("store", JSON.stringify(store))
+
 
 
         $("#reserveModal").modal('hide') ; 
 
 
 
-        importData(store.selection._start_day_range, store.selection._end_day_range, [store.selection._active_day])
+        importData(store.settings.range_start_day, store.settings.range_end_day, [store.settings.active_day])
 
 
     }) ; 
@@ -644,7 +691,15 @@ $(document).ready(function() {
 
 
 
-    loadAllData()
+	if (!initialized){
+		console.log("Initalizing.....")
+		$("#settingsButton").trigger("click")
+	}
+	else{
+		console.log("We alredy were initailized")
+		loadAllData()
+	}
+
 
 });
 

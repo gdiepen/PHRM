@@ -30,6 +30,17 @@
                 </div>
                 <div class="modal-body">
                         <form>
+
+
+                            <div class="form-group row">
+                                <label for="date" class="col-12 col-md-4 col-form-label">Max Heart Rate</label>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="max-heart-rate" name="max-heart-rate" placeholder="Max Heart Rate">
+                                </div>
+                            </div>
+
+
+
                             <div class="form-group row">
                                 <label for="comparisonWeekdays" class="col-md-4 col-form-label">Comparison weekdays</label>
 
@@ -78,7 +89,7 @@
                             <div class="form-group row">
                                 <label for="date" class="col-12 col-md-4 col-form-label">Comparison Value Range</label>
                                 <div class="col-4 col-md-3">
-                                    <input type="text" class="form-control" id="value_range" name="value_range" placeholder="Start">
+                                    <input type="text" class="form-control" id="range-interval" name="range-interval" placeholder="Start">
                                 </div>
                             </div>
 
@@ -93,15 +104,15 @@
                                     <a class="dropdown-item" data-value="gaussian" data-initial="1" href="#">Gaussian filter</a>
                                     <a class="dropdown-item" data-value="moving-average" href="#">Moving Average</a>
                                   </div>
-                                  <input type="hidden" name="smoothing-method"></input>
+                                  <input type="hidden" id="smoothing-method" name="smoothing-method"></input>
                                 </div>
                             </div>
 
                             <div class="form-group row method-options method-options-gaussian">
                                 <label for="date" class="col-12 col-md-4 col-form-label">Gaussian options</label>
                                 <div class="col-4 col-md-3">
-                                    <input type="text" class="form-control" id="gaussian-bucketsize" name="gaussian-bucketsize">
-                                    <label class="form-check-label" for="gaussian-bucketsize">Bucket size (seconds)</label>
+                                    <input type="text" class="form-control" id="gaussian-bucket-size" name="gaussian-bucket-size">
+                                    <label class="form-check-label" for="gaussian-bucket-size"">Bucket size (seconds)</label>
                                 </div>
                                 <div class="col-4 col-md-3">
                                     <input type="text" class="form-control" id="gaussian-stddev" name="gaussian-stddev">
@@ -113,8 +124,8 @@
                             <div class="form-group row method-options method-options-moving-average" style="display:none;">
                                 <label for="date" class="col-12 col-md-4 col-form-label">Moving Average options</label>
                                 <div class="col-4 col-md-3">
-                                    <input type="text" class="form-control" id="moving-average-bucketsize" name="moving-average-bucketsize">
-                                    <label class="form-check-label" for="moving-average-bucketsize">Bucket size (seconds)</label>
+                                    <input type="text" class="form-control" id="moving-average-bucket-size" name="moving-average-bucket-size">
+                                    <label class="form-check-label" for="moving-average-bucket-size">Bucket size (seconds)</label>
                                 </div>
                                 <div class="col-4 col-md-3">
                                     <input type="text" class="form-control" id="moving-average-window" name="moving-average-window">
