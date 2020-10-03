@@ -10,5 +10,5 @@ import '../../common/css/style.css'
 
 
 
-//require('./js/code.js')
+require('./js/code.js')
 
