@@ -39,6 +39,6 @@ class Store:
         _fb_datastore = self._get_datastore(settings)
         return _fb_datastore.get_day(day)
 
-    def get_range(self, range_start_day, range_end_day, range_interval, range_weekday_filter, settings):
+    def get_range(self, range_start_day, range_end_day, range_percentiles, range_weekday_filter, settings):
         _fb_datastore = self._get_datastore(settings)
-        return _fb_datastore.get_range(range_start_day, range_end_day, range_interval, range_weekday_filter)
+        return _fb_datastore.get_range(range_start_day, range_end_day, range_percentiles, range_weekday_filter)

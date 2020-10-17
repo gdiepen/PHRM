@@ -58,22 +58,22 @@ def refresh_data():
 
 @app.route('/api/quantiles/<int:year_month_day_start>/<int:year_month_day_end>', methods=['GET'])
 def get_data_quantile(year_month_day_start, year_month_day_end):
-    
-    interval = float(request.args.get('range_interval', 0.90))
-
+    percentiles = [float(x) for x in request.args.getlist('range_percentiles')]
     arg_relevant_week_days = request.args.get('range_relevant_weekdays', ','.join(map(str, range(0,7) )))
     if arg_relevant_week_days == "":
         arg_relevant_week_days = ','.join(map(str, range(0,7) ))
 
     arg_relevant_week_days = [int(x) for x in arg_relevant_week_days.split(",")]
 
-    print('Request for all quantile data ({}) from {} to {} for weekdays {}'.format( interval, year_month_day_start, year_month_day_end, arg_relevant_week_days))
+    print('Request for all quantile data ({}) from {} to {} for weekdays {}'.format( percentiles, year_month_day_start, year_month_day_end, arg_relevant_week_days))
 
-    (a_m, a_h, a_l) = datastore.get_range(year_month_day_start, year_month_day_end, interval, arg_relevant_week_days, request.args)
+    all_percentiles = datastore.get_range(year_month_day_start, year_month_day_end, percentiles, arg_relevant_week_days, request.args)
 
-    my_df = pd.DataFrame( {'low': a_l, 'median': a_m , 'high': a_h} )
 
-    return my_df.reset_index().to_json(orient='records')
+    #my_df = pd.DataFrame( {'low': all_percentiles.iloc[:,0], 'median': all_percentiles.iloc[:,1], 'high': all_percentiles.iloc[:, 2]} )
+
+    #return my_df.reset_index().to_json(orient='records')
+    return all_percentiles.reset_index().to_json(orient='records')
 
 
 @app.route('/api/day/<int:year_month_day>', methods=['GET'])

@@ -290,7 +290,7 @@ class FitbitStore:
         return result
 
 
-    def get_range(self, range_start, range_end, interval=0.6, weekday_filter=None):
+    def get_range(self, range_start, range_end, percentiles=[0.5], weekday_filter=None):
         if not weekday_filter:
             weekday_filter = list(range(7))
 
@@ -313,18 +313,16 @@ class FitbitStore:
         result.loc[:, 'hours_since_midnight'] = result.bucket / 3600
         result.drop( ['bucket', "interpolated_value"], axis=1, inplace=True)
 
-        quantile_top = 1 - (1-interval)/2.0
-        quantile_bottom = (1-interval)/2.0
 
         # Force the value column to be float
         result.loc[:, 'value'] = result.loc[:, 'value'].astype(float)
 
-        a_m = result.groupby("hours_since_midnight").quantile(0.5).value
-        a_h = result.groupby("hours_since_midnight").quantile(quantile_top).value
-        a_l = result.groupby("hours_since_midnight").quantile(quantile_bottom).value
+        result = result.groupby("hours_since_midnight").quantile(percentiles).unstack(level=-1).droplevel(0, axis=1)
 
+        result.columns = list(range(len(result.columns)))
 
-        return (a_m, a_h, a_l)
+        return result
+
 
     def to_chunks(self, l, n):
         for i in range(1 + len(l) // n):
