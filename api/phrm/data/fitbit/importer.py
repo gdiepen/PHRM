@@ -6,7 +6,6 @@ import pprint
 import os
 import pickle
 
-from . import gather_keys_oauth2 as Oauth2
 import sqlite3
 
 
