@@ -2,7 +2,8 @@ import sqlite3
 import math
 import pandas as pd
 from datetime import datetime
-from .fitbit.datastore import FitbitStore
+from .fitbit.datastore import FitbitStore 
+from .fitbit.importer import  FitbitImporter
 
 class Store:
     def __init__(self, CLIENT_ID, CLIENT_SECRET):
@@ -10,6 +11,8 @@ class Store:
         self.CLIENT_SECRET = CLIENT_SECRET
 
         self.fitbitDatastores = {}
+
+        self.fitbit_importer = FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
 
     def _get_datastore(self, settings):
         key = None
@@ -42,3 +45,13 @@ class Store:
     def get_range(self, range_start_day, range_end_day, range_percentiles, range_weekday_filter, settings):
         _fb_datastore = self._get_datastore(settings)
         return _fb_datastore.get_range(range_start_day, range_end_day, range_percentiles, range_weekday_filter)
+
+
+    def oauth2_token(self, state, code):
+        self.fitbit_importer.oauth2_token(state,code)
+
+    def require_auth(self):
+        if self.fitbit_importer.is_authenticated:
+            return ""
+        else:
+            return self.fitbit_importer.fitbit.client.authorize_token_url()[0]

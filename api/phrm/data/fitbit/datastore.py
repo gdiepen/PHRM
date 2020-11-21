@@ -52,7 +52,7 @@ class FitbitStore:
 
         self.init_base_tables()
         self.raw_data = importer.FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
-        
+
     def init_base_tables(self):
         if not os.path.exists("data"):
             os.mkdir("data")
@@ -318,6 +318,7 @@ class FitbitStore:
         result.loc[:, 'value'] = result.loc[:, 'value'].astype(float)
 
         result = result.groupby("hours_since_midnight").quantile(percentiles).unstack(level=-1).droplevel(0, axis=1)
+
 
         result.columns = list(range(len(result.columns)))
 
