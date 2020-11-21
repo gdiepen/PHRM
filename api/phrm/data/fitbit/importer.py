@@ -1,7 +1,8 @@
-import fitbit
+from fitbit import Fitbit
 import pandas as pd
 import sqlite3
 from datetime import datetime
+import pprint
 import os
 import pickle
 
@@ -16,19 +17,56 @@ class FitbitImporter:
         self.data_cache = {}
 
         self.DB = "data/fitbit/raw/fitbit_raw_data.sqlite3"
+        self.token_file = "data/fitbit/token/token.pickle"
 
         self.init_base_tables()
 
         self.cache = {}
+
+        self.is_authenticated = False
+
+        if os.path.exists(self.token_file):
+            with open(self.token_file, 'rb') as f:
+                self.token = pickle.load(f)
+
+                ACCESS_TOKEN = str(self.token['access_token'])
+                REFRESH_TOKEN = str(self.token['refresh_token'])
+                EXPIRES_AT = float(str(self.token['expires_at']))
+
+            self.fitbit = Fitbit(
+                self.CLIENT_ID,
+                self.CLIENT_SECRET,
+                oauth2=True,
+                redirect_uri="http://localhost:8080/api/fitbit_auth_redirect",
+                access_token=ACCESS_TOKEN,
+                refresh_token=REFRESH_TOKEN,
+                expires_at=EXPIRES_AT,
+                refresh_cb=self.refresh_cb,
+            )
+            self.is_authenticated = True
+        else:
+            self.fitbit = Fitbit(
+                self.CLIENT_ID,
+                self.CLIENT_SECRET,
+                oauth2=True,
+                redirect_uri="http://localhost:8080/api/fitbit_auth_redirect",
+                refresh_cb=self.refresh_cb,
+            )
+
+    def oauth2_token(self, state, code):
+        self.fitbit.client.fetch_access_token(code)
+    
+        os.makedirs("data/fitbit/token", exist_ok=True)
+
+        with open(self.token_file, "wb") as f:
+            pprint.pprint(self.fitbit.client.session.token)
+            pickle.dump(self.fitbit.client.session.token, f)
+
+        self.is_authenticated = True
         
 
     def init_base_tables(self):
-        if not os.path.exists("data"):
-            os.mkdir("data")
-        if not os.path.exists("data/fitbit"):
-            os.mkdir("data/fitbit")
-        if not os.path.exists("data/fitbit/raw"):
-            os.mkdir("data/fitbit/raw")
+        os.makedirs("data/fitbit/raw", exist_ok=True)
 
         conn = sqlite3.connect(self.DB)
         
@@ -107,18 +145,19 @@ class FitbitImporter:
         refresh_token = token['refresh_token']
         expires_at = token['expires_at']
 
-        with open('token.pickle', 'wb') as f:
+        with open(self.token_file, 'wb') as f:
             pickle.dump(token, f)
 
 
     def obtain_tokens(self):
-        if not os.path.exists('token.pickle'):
-            server = Oauth2.OAuth2Server(self.CLIENT_ID, self.CLIENT_SECRET)
-            server.browser_authorize()
+        pass
+        # if not os.path.exists(self.token_file):
+        #     server = Oauth2.OAuth2Server(self.CLIENT_ID, self.CLIENT_SECRET)
+        #     server.browser_authorize()
 
-            with open('token.pickle', 'wb') as f:
-                pprint.pprint(server.fitbit.client.session.token)
-                pickle.dump(server.fitbit.client.session.token, f)
+        #     with open(self.token_file) as f:
+        #         pprint.pprint(server.fitbit.client.session.token)
+        #         pickle.dump(server.fitbit.client.session.token, f)
 
     def get_raw_hr_data(self, day):
         """Retrieve the raw HR data for a given day from fitbit
@@ -128,26 +167,17 @@ class FitbitImporter:
               String representing the day we wan to get. The string should be formatted in
               the format YYYY-MM-DD
         """
-        self.obtain_tokens()
+        # self.obtain_tokens()
         
         print("Retrieving heart-rate data for day {} from fitbit API".format(day))
-        with open('token.pickle', 'rb') as f:
+        with open(self.token_file, 'rb') as f:
             token = pickle.load(f)
 
             ACCESS_TOKEN = str(token['access_token'])
             REFRESH_TOKEN = str(token['refresh_token'])
             EXPIRES_AT = float(str(token['expires_at']))
 
-        auth2_client = fitbit.Fitbit(
-            self.CLIENT_ID,
-            self.CLIENT_SECRET,
-            oauth2=True,
-            access_token=ACCESS_TOKEN,
-            refresh_token=REFRESH_TOKEN,
-            expires_at=EXPIRES_AT,
-            refresh_cb=self.refresh_cb
-        )
 
-        fb_data = auth2_client.intraday_time_series('activities/heart', base_date=day, detail_level='1sec')
+        fb_data = self.fitbit.intraday_time_series('activities/heart', base_date=day, detail_level='1sec')
         df_hr_data = pd.DataFrame(fb_data['activities-heart-intraday']['dataset']) 
         return df_hr_data     
