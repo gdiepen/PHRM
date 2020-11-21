@@ -5,20 +5,206 @@
     <!-- Required meta tags always come first -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
     <meta http-equiv="x-ua-compatible" content="ie=edge">
-
-
-    <title>PHRM - Personal Heart Rate Monitor - About - <%= htmlWebpackPlugin.options.filename %> </title>
+    <title>PHRM - Personal Heart Rate Monitor - About</title>
 </head>
 
 <body>
-
-
 
 <%- include ../../common/navbar.ejs %>
 
 
 
 
+
+
+
+    <div id="reserveModal" class="modal fade" role="dialog">
+        <div class="modal-dialog modal-lg" role="content">
+            <!-- Modal content-->
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title">Settings</h4>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                        <form>
+
+
+                            <div class="form-group row">
+                                <label for="date" class="col-12 col-md-4 col-form-label">Max Heart Rate</label>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="max-heart-rate" name="max-heart-rate" placeholder="Max Heart Rate">
+                                </div>
+                            </div>
+
+
+
+                            <div class="form-group row">
+                                <label for="comparisonWeekdays" class="col-md-4 col-form-label">Comparison weekdays</label>
+
+                                <div class="col-md-8">
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdayMo" value="0">
+                                      <label class="form-check-label" for="inlineWeekdayMo">Mo</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdayTu" value="1">
+                                      <label class="form-check-label" for="inlineWeekdayTu">Tu</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdayWe" value="2">
+                                      <label class="form-check-label" for="inlineWeekdayWe">We</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdayTh" value="3">
+                                      <label class="form-check-label" for="inlineWeekdayTh">Th</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdayFr" value="4">
+                                      <label class="form-check-label" for="inlineWeekdayFr">Fr</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdaySa" value="5">
+                                      <label class="form-check-label" for="inlineWeekdaySa">Sa</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                      <input class="form-check-input" type="checkbox" name="inlineWeekdayOptions" id="inlineWeekdaySu" value="6">
+                                      <label class="form-check-label" for="inlineWeekdaySu">Su</label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-group row">
+                                <label for="date" class="col-12 col-md-4 col-form-label">Comparison Date Range</label>
+                                <div class="col-6 col-md-3">
+                                    <input type="text" class="form-control" id="range_start" name="range_start" placeholder="Start">
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <input type="text" class="form-control" id="range_end" name="range_end" placeholder="End">
+                                </div>
+                            </div>
+
+                            <div class="form-group row">
+                                <label for="date" class="col-12 col-md-4 col-form-label">Comparison Value Range</label>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="range-interval" name="range-interval" placeholder="Start">
+                                </div>
+                            </div>
+
+
+
+
+                            <div class="form-group row">
+                                <label for="method-select" class="col-12 col-md-4 col-form-label">Smoothing method</label>
+                                <div class="col-4 col-md-8">
+                                  <button class="btn btn-primary dropdown-toggle col-md-4" type="button" id="dropdownSmoothing" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false"></button>
+                                  <div class="dropdown-menu" id="dropdownSmoothingOptions" aria-labelledby="dropdownSmoothing">
+                                    <a class="dropdown-item" data-value="gaussian" data-initial="1" href="#">Gaussian filter</a>
+                                    <a class="dropdown-item" data-value="moving-average" href="#">Moving Average</a>
+                                  </div>
+                                  <input type="hidden" id="smoothing-method" name="smoothing-method"></input>
+                                </div>
+                            </div>
+
+                            <div class="form-group row method-options method-options-gaussian">
+                                <label for="date" class="col-12 col-md-4 col-form-label">Gaussian options</label>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="gaussian-bucket-size" name="gaussian-bucket-size">
+                                    <label class="form-check-label" for="gaussian-bucket-size"">Bucket size (seconds)</label>
+                                </div>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="gaussian-stddev" name="gaussian-stddev">
+                                    <label class="form-check-label" for="gaussian-stddev">Standard deviation</label>
+                                </div>
+                            </div>
+
+
+                            <div class="form-group row method-options method-options-moving-average" style="display:none;">
+                                <label for="date" class="col-12 col-md-4 col-form-label">Moving Average options</label>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="moving-average-bucket-size" name="moving-average-bucket-size">
+                                    <label class="form-check-label" for="moving-average-bucket-size">Bucket size (seconds)</label>
+                                </div>
+                                <div class="col-4 col-md-3">
+                                    <input type="text" class="form-control" id="moving-average-window" name="moving-average-window">
+                                    <label class="form-check-label" for="moving-average-window">Window size</label>
+                                </div>
+                            </div>
+
+
+
+
+
+
+
+
+
+                            <div class="form-group row">
+                                <div class="offset-md-2">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                                    <button id="settingsSubmit" type="submit" class="btn btn-primary">OK</button>
+                                </div>
+                            </div>
+                            
+                        </form>
+
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+
+
+
+
+
+
+
+    <div class="container-fluid h-100 content-container">
+        <div class="row justify-content-center h-100">
+                <svg id='svg-content'>
+            <defs>
+                <linearGradient id="linearGradient" x1="0" y1="0" x2="0%" y2="100%" gradientUnits="userSpaceOnUse" > 
+                    <stop offset="30%" stop-color="red" />
+                    <stop offset="80%" stop-color="yellow" />
+
+                </linearGradient> 
+
+            </defs>
+                    <!--   <rect width="150" height="150" style="fill:rgb(0,0,255);stroke-width:3;stroke:rgb(0,0,0)" transform="translate(0,0)"> -->
+                </svg>
+        </div>
+    </div> 
+    
+    <footer class="footer">
+        <div class="row">             
+           
+            <div class="col-6 col-sm-3">
+                <input type="text" id="datepicker" class="w-75">
+            </div>
+
+
+            <div class="col-2 col-sm-1">
+                <button class="btn btn-primary btn-sm" id="reloadButton">
+                    <span id="reloadspinner" class="fa fa-refresh fa-lg" style="font-size:20px"></span>
+                </button>
+            </div>
+            <div class="col-2 col-sm-1">
+                <button class="btn btn-primary btn-sm" id="settingsButton">
+                    <span class="fa fa-cog fa-lg" style="font-size:20px"></span>
+                </button>
+
+            </div>
+        </div>
+    </footer>
+
+
+
 </body>
+
 </html>
