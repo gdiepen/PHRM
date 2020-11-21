@@ -6,6 +6,7 @@ const datetimepicker = require('jquery-datetimepicker')
 
 
 
+
 window.$ = $
 //window.bootstrap = bootstrap
 //window.aaa = DateTime
@@ -36,6 +37,7 @@ if (localStorage.getItem("store") === null){
 	store.settings.range_start_day = "20200101" ; 
 	store.settings.range_end_day = DateTime.local().toFormat("yyyyLLdd"); 
 	store.settings.range_interval = "0.6" ;
+	store.settings.range_percentiles = [0.2, 0.5, 0.8];
 	store.settings.range_relevant_weekdays = "0,1,2,3,4,5,6";
 
 	store.gui.max_heart_rate = 200
@@ -48,7 +50,7 @@ else{
 	initialized=true
 }
 
-window.mystore = store.settings
+window.mystore = store
 store.settings.active_day = DateTime.local().toFormat("yyyyLLdd"); 
 
 
@@ -319,7 +321,19 @@ function importData(date_range_start, date_range_end, separate_dates){
 
 function loadRangeData(){
 	const searchParams = new URLSearchParams()
-	Object.entries(store.settings).forEach(([key, value]) => searchParams.append(key, value));
+	Object.entries(store.settings).forEach(([key, value]) => {
+		if (Array.isArray(value)){
+
+			value.forEach(arr_value => {
+				searchParams.append(key, arr_value) ;
+			});
+		}
+		else{
+
+			searchParams.append(key, value)
+		}
+
+	});
 
     let api_query_url_quantiles = "/api/quantiles/" + store.settings.range_start_day + "/" + store.settings.range_end_day + "?" + searchParams.toString()
 
@@ -343,7 +357,22 @@ function loadRangeData(){
 
 function loadDailyData(){
 	const searchParams = new URLSearchParams()
-	Object.entries(store.settings).forEach(([key, value]) => searchParams.append(key, value));
+	Object.entries(store.settings).forEach(([key, value]) => {
+		if (Array.isArray(value)){
+
+			value.forEach(arr_value => {
+				searchParams.append(key, arr_value) ;
+			});
+		}
+		else{
+
+			searchParams.append(key, value)
+		}
+
+	});
+
+
+
 
     let api_query_url_day = "/api/day/" + store.settings.active_day + "?" + searchParams.toString()
 
@@ -374,7 +403,20 @@ function loadAllData(){
     $("#reloadspinner").addClass('fa-spin') ;
 
 	const searchParams = new URLSearchParams()
-	Object.entries(store.settings).forEach(([key, value]) => searchParams.append(key, value));
+	Object.entries(store.settings).forEach(([key, value]) => {
+		if (Array.isArray(value)){
+
+			value.forEach(arr_value => {
+				searchParams.append(key, arr_value) ;
+			});
+		}
+		else{
+
+			searchParams.append(key, value)
+		}
+
+	});
+
 
     let api_query_url_day = "/api/day/" + store.settings.active_day + "?" + searchParams.toString()
     let api_query_url_quantiles = "/api/quantiles/" + store.settings.range_start_day + "/" + store.settings.range_end_day + "?" + searchParams.toString()
@@ -432,7 +474,8 @@ function showDailyData(){
             .y(function (d) {return store.y(+d.value)})
         ) ;
 
-    day_points.exit().remove();
+    day_points.exit()
+		.remove();
 
 
     svg_properties.day_description
@@ -468,8 +511,8 @@ function showRangeData(){
         .duration(750)
         .attr("d", d3.area()
             .x(function (d) {return store.x(d.hours_since_midnight)})
-            .y0(function (d) {return store.y(d.low)})
-            .y1(function (d) {return store.y(d.high)})
+            .y0(function (d) {return store.y(d[0])})
+            .y1(function (d) {return store.y(d[2])})
         )
 
     range_points.exit().remove()
@@ -493,7 +536,7 @@ function showRangeData(){
         .duration(750)
         .attr("d", d3.line()
             .x(function (d) {return store.x(d.hours_since_midnight)})
-            .y(function (d) {return store.y(d.median)})
+            .y(function (d) {return store.y(d[1])})
         )
 
     median_points.exit().remove()
@@ -617,6 +660,64 @@ $(document).ready(function() {
 
     d3.select("#reloadButton").on("click", function(){
         importData(store.settings.range_start_day, store.settings.range_end_day, [store.settings.active_day])
+		return
+		
+
+		var new_g = svg_properties.svg_select.append("g")
+		new_g.append("rect")
+			.attr("width", svg_properties.width)
+			.attr("height", svg_properties.height + svg_properties.inner_margin_top + svg_properties.inner_margin_bottom)
+			.style('fill', "#000")
+			.style('opacity', 0.5)
+			.transition()
+			.duration(750)
+
+				
+		var heart_shape_enclosure = new_g
+			.append("g")
+			.attr("id", "heart-shape-enclosure")
+			.style("fill", "none")
+			.style("stroke", "#512DA8")
+			.style("stroke-linejoin", "round")
+			.style("stroke-width", "0.1px") 
+			.attr("transform", "translate("+ svg_properties.width/2+"," + (svg_properties.height+ svg_properties.inner_margin_top + svg_properties.inner_margin_bottom)/2 + ") scale(35,35)")
+
+
+
+		var heart_shape_path = heart_shape_enclosure
+			.append("path")
+			.attr("id", "heart-path")
+			.attr("d","M13.075 3.925A3.157 3.157 0 0 0 10.842 3c-.838 0-1.641.478-2.233 1.07L8 4.68l-.609-.61c-1.233-1.233-3.233-1.378-4.466-.145a3.158 3.158 0 0 0 0 4.467L3.534 9 8 13.788 12.466 9l.609-.608a3.157 3.157 0 0 0 0-4.467z")
+
+
+
+		var bbox = d3.select("#heart-path").node().getBBox()
+		console.log(bbox)
+
+		d3.select("#heart-path")
+			.attr("transform", "translate(" + (-bbox.x - bbox.width/2) + "," + (-bbox.y - bbox.height/2) +")")
+
+
+		console.log(d3.select("#heart-path"))
+
+
+		heart_shape_enclosure
+			.transition()
+			.duration(800)
+			.style("stroke-width", "2px") 
+			.transition()
+			.duration(400)
+			.style("stroke-width", "1.5px") 
+			.transition()
+			.duration(400)
+			.style("stroke-width", "2px") 
+			.transition()
+			.duration(800)
+			.style("stroke-width", "0.1px") 
+
+
+
+
     })
 
 
@@ -658,6 +759,7 @@ $(document).ready(function() {
         store.settings.range_start_day = DateTime.fromISO( $("#range_start").val()).toFormat("yyyyLLdd")
         store.settings.range_end_day = DateTime.fromISO( $("#range_end").val()).toFormat("yyyyLLdd")
         store.settings.range_interval = $("#range-interval").val()
+		store.settings.range_percentiles = [ 0.5 -  $("#range-interval").val() / 2, 0.5, 0.5 + $("#range-interval").val() / 2] ;
         store.settings.gaussian_bucket_size = $("#gaussian-bucket-size").val()
         store.settings.gaussian_stddev = $("#gaussian-stddev").val()
 
@@ -700,14 +802,51 @@ $(document).ready(function() {
 
 
 
-	if (!initialized){
-		console.log("Initalizing.....")
-		$("#settingsButton").trigger("click")
-	}
-	else{
-		console.log("We alredy were initailized")
-		loadAllData()
-	}
+    d3.json('/api/fitbit_require_auth', {
+        method: "GET",
+        headers: {
+            "Content-type": "application/json; charset=UTF-8"
+        }
+    }).then( (data) => {
+		console.log("auth stuff")
+		console.log(data)
+		
+		if (data.auth_url !== ""){
+			alert("Not authorized, going to redirect to fitbit")
+			console.log(data.auth_url)
+
+			window.location.replace(data.auth_url);
+		}
+		else{
+
+			if (!initialized){
+				console.log("Initalizing.....")
+				$("#settingsButton").trigger("click")
+			}
+			else{
+				console.log("We alredy were initailized")
+				loadAllData()
+			}
+
+		}
+
+
+    }).catch( (error) => {
+        console.log(error) ;
+    })
+
+
+/*
+ *
+ *
+
+*/
+
+
+
+
+
+
 
 
 });
