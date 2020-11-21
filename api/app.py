@@ -55,6 +55,21 @@ def refresh_data():
 
     return jsonify({'status': '0'})
 
+@app.route("/api/fitbit_auth_redirect", methods=["GET"])
+def fitbit_auth_redirect():
+    _code = request.args.get("code")
+    _state = request.args.get("state")
+
+    datastore.oauth2_token(_state, _code)
+
+    return redirect("/")
+
+
+@app.route("/api/fitbit_require_auth", methods=["GET"])
+def fitbit_require_auth():
+
+    return jsonify({"auth_url": datastore.require_auth()})
+    
 
 @app.route('/api/quantiles/<int:year_month_day_start>/<int:year_month_day_end>', methods=['GET'])
 def get_data_quantile(year_month_day_start, year_month_day_end):
