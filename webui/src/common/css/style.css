@@ -53,3 +53,27 @@ body {
 }
 
 
+.modal:nth-of-type(1) {
+    z-index: 1052 !important;
+}
+.modal-backdrop.show:nth-of-type(1) {
+    z-index: 1051 !important;
+}
+
+.modal:nth-of-type(2) {
+    z-index: 1053 !important;
+}
+.modal-backdrop.show:nth-of-type(2) {
+    z-index: 1052 !important;
+}
+
+
+#list-group-ranges{
+    height: 300px;
+    max-height: 300px;
+    margin-bottom: 10px;
+    overflow-y:scroll;
+    -webkit-overflow-scrolling: touch;
+}
+
+
