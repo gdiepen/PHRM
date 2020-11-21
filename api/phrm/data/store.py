@@ -2,8 +2,8 @@ import sqlite3
 import math
 import pandas as pd
 from datetime import datetime
-from .fitbit.datastore import FitbitStore 
-from .fitbit.importer import  FitbitImporter
+from phrm.data.fitbit.datastore import FitbitStore 
+from phrm.data.fitbit.importer import  FitbitImporter
 
 class Store:
     def __init__(self, CLIENT_ID, CLIENT_SECRET):
