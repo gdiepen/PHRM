@@ -11,10 +11,8 @@ import sqlite3
 
 from astropy.convolution import Gaussian1DKernel, convolve
 
-class FitbitStore:
-    def __init__(self, CLIENT_ID, CLIENT_SECRET, settings):
-        self.CLIENT_ID = CLIENT_ID
-        self.CLIENT_SECRET = CLIENT_SECRET
+class FitbitProcessedDataStore:
+    def __init__(self, fitbit_importer, settings):
         self.data_cache = {}
 
         self.moving_average_bucket_size = settings.get("moving_average_bucket_size")
@@ -50,7 +48,7 @@ class FitbitStore:
             raise Exception(f"Unknown method {self.smoothing_method}")
 
         self.init_base_tables()
-        self.raw_data = importer.FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
+        self.fitbit_importer = fitbit_importer
 
     def init_base_tables(self):
         if not os.path.exists("data"):
@@ -103,7 +101,7 @@ class FitbitStore:
         # if we are not finished, then 
         # make sure that  we have the raw days to back things up for the missing days
         # We have to add the surround days for this
-        self.raw_data.download_days(self.add_surround_days(missing_days))
+        self.fitbit_importer.download_days(self.add_surround_days(missing_days))
 
 
         print(f"Missing processed days are {missing_days}")
@@ -116,7 +114,7 @@ class FitbitStore:
         for process_chunk in process_chunks:
             process_chunk_with_surround = self.add_surround_days(process_chunk)
 
-            df_raw_data = self.raw_data.get_data(process_chunk_with_surround)
+            df_raw_data = self.fitbit_importer.get_data(process_chunk_with_surround)
 
             if len(df_raw_data) > 0:
                 # process the results
