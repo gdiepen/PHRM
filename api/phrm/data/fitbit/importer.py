@@ -6,6 +6,8 @@ import pprint
 import os
 import pickle
 
+from flask import request, redirect
+
 import sqlite3
 
 
@@ -51,9 +53,13 @@ class FitbitImporter:
                 redirect_uri="http://localhost:8080/api/fitbit_auth_redirect",
                 refresh_cb=self.refresh_cb,
             )
+        print(f"authenticated = {self.is_authenticated}")
 
-    def oauth2_token(self, state, code):
-        self.fitbit.client.fetch_access_token(code)
+    def oauth2_token(self):
+        _code = request.args.get("code")
+        _state = request.args.get("state")
+
+        self.fitbit.client.fetch_access_token(_code)
     
         os.makedirs("data/fitbit/token", exist_ok=True)
 
@@ -62,7 +68,8 @@ class FitbitImporter:
             pickle.dump(self.fitbit.client.session.token, f)
 
         self.is_authenticated = True
-        
+
+        return redirect("/")
 
     def init_base_tables(self):
         os.makedirs("data/fitbit/raw", exist_ok=True)

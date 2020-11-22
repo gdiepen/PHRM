@@ -802,7 +802,7 @@ $(document).ready(function() {
 
 
 
-    d3.json('/api/fitbit_require_auth', {
+    d3.json('/api/auth_config_url', {
         method: "GET",
         headers: {
             "Content-type": "application/json; charset=UTF-8"
@@ -811,11 +811,11 @@ $(document).ready(function() {
 		console.log("auth stuff")
 		console.log(data)
 		
-		if (data.auth_url !== ""){
+		if (data.auth_config_url !== ""){
 			alert("Not authorized, going to redirect to fitbit")
-			console.log(data.auth_url)
+			console.log(data.auth_config_url)
 
-			window.location.replace(data.auth_url);
+			window.location.replace(data.auth_config_url);
 		}
 		else{
 

@@ -21,7 +21,7 @@ with open("../credentials.yaml") as f:
     config = yaml.safe_load(f)
 
 
-datastore = Store(config["CLIENT_ID"], config["CLIENT_SECRET"])
+datastore = Store()
 
 @app.after_request
 def add_header(response):
@@ -51,24 +51,22 @@ def refresh_data():
     # Now get the unique sorted list again
     all_dates = sorted([*{*all_dates}])
 
-    datastore.refresh_data(all_dates, content)
+    datastore.refresh_data("fitbit", all_dates, content)
 
     return jsonify({'status': '0'})
 
-@app.route("/api/fitbit_auth_redirect", methods=["GET"])
-def fitbit_auth_redirect():
-    _code = request.args.get("code")
-    _state = request.args.get("state")
+# @app.route("/api/fitbit_auth_redirect", methods=["GET"])
+# def fitbit_auth_redirect():
+#     datastore.oauth2_token(_state, _code)
+# 
+#     return redirect("/")
+# 
 
-    datastore.oauth2_token(_state, _code)
-
-    return redirect("/")
-
-
-@app.route("/api/fitbit_require_auth", methods=["GET"])
-def fitbit_require_auth():
-
-    return jsonify({"auth_url": datastore.require_auth()})
+@app.route("/api/auth_config_url", methods=["GET"])
+def auth_config_url():
+    # Currently only fitbit backend implemented, so just get the auth config URL for the
+    # fitbit backend
+    return jsonify({"auth_config_url": datastore.auth_config_url("fitbit")})
     
 
 @app.route('/api/quantiles/<int:year_month_day_start>/<int:year_month_day_end>', methods=['GET'])
@@ -82,7 +80,7 @@ def get_data_quantile(year_month_day_start, year_month_day_end):
 
     print('Request for all quantile data ({}) from {} to {} for weekdays {}'.format( percentiles, year_month_day_start, year_month_day_end, arg_relevant_week_days))
 
-    all_percentiles = datastore.get_range(year_month_day_start, year_month_day_end, percentiles, arg_relevant_week_days, request.args)
+    all_percentiles = datastore.get_range("fitbit", year_month_day_start, year_month_day_end, percentiles, arg_relevant_week_days, request.args)
 
 
     #my_df = pd.DataFrame( {'low': all_percentiles.iloc[:,0], 'median': all_percentiles.iloc[:,1], 'high': all_percentiles.iloc[:, 2]} )
@@ -95,12 +93,15 @@ def get_data_quantile(year_month_day_start, year_month_day_end):
 def get_data_day(year_month_day):
 
 
-    result = datastore.get_day(year_month_day, request.args).loc[:, ['hours_since_midnight', 'value']]
+    result = datastore.get_day("fitbit", year_month_day, request.args).loc[:, ['hours_since_midnight', 'value']]
 
     return result.to_json(orient='records')
 
 
 if __name__ == '__main__':
+    for r,f in datastore.get_backend_routes():
+        print(f"Adding {f} to handle route {r}")
+        app.add_url_rule(r, view_func=f, methods=["GET"])
 
     app.run(debug=True, host='0.0.0.0', port=5002)
 
