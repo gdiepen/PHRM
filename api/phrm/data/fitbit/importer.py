@@ -14,7 +14,7 @@ import yaml
 
 
 class FitbitImporter:
-    def __init__(self, CLIENT_ID, CLIENT_SECRET):
+    def __init__(self):
         with open("../credentials.yaml") as f:
             config = yaml.safe_load(f)
 
@@ -49,7 +49,7 @@ class FitbitImporter:
                 self.CLIENT_ID,
                 self.CLIENT_SECRET,
                 oauth2=True,
-                redirect_uri=f"{APP_BASE_URL}api/fitbit_auth_redirect",
+                redirect_uri=f"{self.APP_BASE_URL}api/fitbit_auth_redirect",
                 access_token=ACCESS_TOKEN,
                 refresh_token=REFRESH_TOKEN,
                 expires_at=EXPIRES_AT,
@@ -61,7 +61,7 @@ class FitbitImporter:
                 self.CLIENT_ID,
                 self.CLIENT_SECRET,
                 oauth2=True,
-                redirect_uri=f"{APP_BASE_URL}/api/fitbit_auth_redirect",
+                redirect_uri=f"{self.APP_BASE_URL}/api/fitbit_auth_redirect",
                 refresh_cb=self.refresh_cb,
             )
         print(f"authenticated = {self.is_authenticated}")

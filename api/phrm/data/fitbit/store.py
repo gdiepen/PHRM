@@ -7,14 +7,6 @@ import yaml
 
 class FitbitStore:
     def __init__(self):
-        with open("../credentials.yaml") as f:
-            config = yaml.safe_load(f)
-
-
-
-        self.CLIENT_ID = config["CLIENT_ID"]
-        self.CLIENT_SECRET = config["CLIENT_SECRET"]
-
         self.processed_data_stores = {}
 
         self.fitbit_importer = FitbitImporter()
