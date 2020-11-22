@@ -2,7 +2,7 @@ import sqlite3
 import math
 import pandas as pd
 from datetime import datetime
-from phrm.data.fitbit.datastore import FitbitStore 
+from phrm.data.fitbit.processed_datastore import FitbitProcessedDataStore 
 from phrm.data.fitbit.importer import  FitbitImporter
 
 class Store:
