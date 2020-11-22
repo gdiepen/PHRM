@@ -11,7 +11,7 @@ import sqlite3
 
 from astropy.convolution import Gaussian1DKernel, convolve
 
-class FitbitStore:
+class FitbitProcessedDataStore:
     def __init__(self, CLIENT_ID, CLIENT_SECRET, settings):
         self.CLIENT_ID = CLIENT_ID
         self.CLIENT_SECRET = CLIENT_SECRET
