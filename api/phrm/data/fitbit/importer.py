@@ -10,11 +10,22 @@ from flask import request, redirect
 
 import sqlite3
 
+import yaml
+
 
 class FitbitImporter:
     def __init__(self, CLIENT_ID, CLIENT_SECRET):
-        self.CLIENT_ID = CLIENT_ID
-        self.CLIENT_SECRET = CLIENT_SECRET
+        with open("../credentials.yaml") as f:
+            config = yaml.safe_load(f)
+
+
+
+        self.CLIENT_ID = config["CLIENT_ID"]
+        self.CLIENT_SECRET = config["CLIENT_SECRET"]
+        self.APP_BASE_URL = config["APP_BASE_URL"]
+
+
+
         self.data_cache = {}
 
         self.DB = "data/fitbit/raw/fitbit_raw_data.sqlite3"
@@ -38,7 +49,7 @@ class FitbitImporter:
                 self.CLIENT_ID,
                 self.CLIENT_SECRET,
                 oauth2=True,
-                redirect_uri="http://localhost:8080/api/fitbit_auth_redirect",
+                redirect_uri=f"{APP_BASE_URL}api/fitbit_auth_redirect",
                 access_token=ACCESS_TOKEN,
                 refresh_token=REFRESH_TOKEN,
                 expires_at=EXPIRES_AT,
@@ -50,7 +61,7 @@ class FitbitImporter:
                 self.CLIENT_ID,
                 self.CLIENT_SECRET,
                 oauth2=True,
-                redirect_uri="http://localhost:8080/api/fitbit_auth_redirect",
+                redirect_uri=f"{APP_BASE_URL}/api/fitbit_auth_redirect",
                 refresh_cb=self.refresh_cb,
             )
         print(f"authenticated = {self.is_authenticated}")
@@ -155,15 +166,6 @@ class FitbitImporter:
             pickle.dump(token, f)
 
 
-    def obtain_tokens(self):
-        pass
-        # if not os.path.exists(self.token_file):
-        #     server = Oauth2.OAuth2Server(self.CLIENT_ID, self.CLIENT_SECRET)
-        #     server.browser_authorize()
-
-        #     with open(self.token_file) as f:
-        #         pprint.pprint(server.fitbit.client.session.token)
-        #         pickle.dump(server.fitbit.client.session.token, f)
 
     def get_raw_hr_data(self, day):
         """Retrieve the raw HR data for a given day from fitbit
@@ -173,8 +175,6 @@ class FitbitImporter:
               String representing the day we wan to get. The string should be formatted in
               the format YYYY-MM-DD
         """
-        # self.obtain_tokens()
-        
         print("Retrieving heart-rate data for day {} from fitbit API".format(day))
         with open(self.token_file, 'rb') as f:
             token = pickle.load(f)

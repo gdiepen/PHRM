@@ -17,7 +17,7 @@ class FitbitStore:
 
         self.processed_data_stores = {}
 
-        self.fitbit_importer = FitbitImporter(self.CLIENT_ID, self.CLIENT_SECRET)
+        self.fitbit_importer = FitbitImporter()
 
 
 
